@@ -30,7 +30,6 @@ class AudioHealthMonitor {
     };
     
     scheduleCheck();
-    console.log("[HealthMonitor] Watchdog started.");
   }
 
   stop() {
