@@ -6,8 +6,8 @@ function createWindow() {
     width: 1280,
     height: 800,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
     },
     title: "CORE AZERO",
     backgroundColor: "#121212",
