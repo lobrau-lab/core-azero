@@ -14,14 +14,30 @@ class AudioHealthMonitor {
   private readonly STALL_THRESHOLD_COUNT = 3;
 
   private currentChannels: ChannelSettings[] = [];
+  private cachedInputDeviceIds: Set<string> = new Set();
   
   public onHealthUpdate: ((report: HealthReport) => void) | null = null;
+
+
+  private updateDeviceCache = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      this.cachedInputDeviceIds = new Set(devices.filter(d => d.kind === 'audioinput').map(d => d.deviceId));
+    } catch (err) {
+      console.warn('[AudioHealthMonitor] Failed to enumerate devices for cache:', err);
+    }
+  };
 
   start(channels: ChannelSettings[]) {
     if (this.intervalId) return;
     this.currentChannels = channels;
     this.lastContextTime = audioEngine.getContextTime();
     
+    this.updateDeviceCache();
+    if (globalThis.navigator && globalThis.navigator.mediaDevices) {
+        globalThis.navigator.mediaDevices.addEventListener('devicechange', this.updateDeviceCache);
+    }
+
     const scheduleCheck = () => {
         this.intervalId = window.setTimeout(async () => {
             await this.performHealthCheck();
@@ -36,6 +52,9 @@ class AudioHealthMonitor {
     if (this.intervalId) {
       clearTimeout(this.intervalId);
       this.intervalId = null;
+    }
+    if (globalThis.navigator && globalThis.navigator.mediaDevices) {
+        globalThis.navigator.mediaDevices.removeEventListener('devicechange', this.updateDeviceCache);
     }
   }
 
@@ -68,12 +87,9 @@ class AudioHealthMonitor {
     this.lastContextTime = currentTime;
 
     // 2. Check Device Integrity (Protocol A)
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const inputDeviceIds = new Set(devices.filter(d => d.kind === 'audioinput').map(d => d.deviceId));
-
     for (const ch of this.currentChannels) {
         // FIX: Ignore 'display-capture' as it is a virtual browser ID, not a physical device
-        if (ch.type === 'PHYSICAL' && ch.deviceId && ch.deviceId !== 'display-capture' && !inputDeviceIds.has(ch.deviceId)) {
+        if (ch.type === 'PHYSICAL' && ch.deviceId && ch.deviceId !== 'display-capture' && !this.cachedInputDeviceIds.has(ch.deviceId)) {
             await this.executeProtocolA(ch.id, `Physical device ${ch.deviceId} disconnected.`);
         }
     }
