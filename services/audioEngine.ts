@@ -229,7 +229,7 @@ class AudioEngine {
 
     // Master Meter Setup
     this.masterMeter = this.context.createAnalyser();
-    this.masterMeter.fftSize = 1024;
+    this.masterMeter.fftSize = 2048;
     this.masterMeter.smoothingTimeConstant = 0.8;
 
     this.destination = this.context.createMediaStreamDestination();
@@ -337,7 +337,9 @@ class AudioEngine {
     gainNode.connect(meterNode);
 
     // Initial Master Connection
-    if (this.masterCompressor) {
+    if (this.masterGain) {
+      meterNode.connect(this.masterGain);
+    } else if (this.masterCompressor) {
       meterNode.connect(this.masterCompressor); 
     }
 
@@ -513,6 +515,13 @@ class AudioEngine {
     } else if (anySoloed && !settings.solo) {
         gainVal = 0;
     }
+
+    // External VST DSP gain & trim response when active
+    if (settings.vst?.enabled) {
+        const vstTrimDb = (settings.vst.outputGain || 0) + (settings.vst.inputGain || 0) * 0.25;
+        const vstGainFactor = Math.pow(10, vstTrimDb / 20);
+        gainVal *= vstGainFactor;
+    }
     
     ch.gainNode.gain.setTargetAtTime(gainVal, this.context.currentTime, 0.05);
   }
@@ -610,6 +619,132 @@ class AudioEngine {
     const newState = this.calculateRMSAndPeak(this.masterMeter, this.masterMeterState);
     this.masterMeterState = newState;
     return newState;
+  }
+
+  getMasterAnalyser(): AnalyserNode | null {
+    return this.masterMeter;
+  }
+
+  getMasterFrequencyData(targetArray: Uint8Array): void {
+    if (this.masterMeter) {
+      this.masterMeter.getByteFrequencyData(targetArray);
+    }
+  }
+
+  getMasterTimeDomainData(targetArray: Uint8Array): void {
+    if (this.masterMeter) {
+      this.masterMeter.getByteTimeDomainData(targetArray);
+    }
+  }
+
+  getMasterSampleRate(): number {
+    return this.context ? this.context.sampleRate : 48000;
+  }
+
+  private testGenSource: AudioNode | null = null;
+  private testGenGain: GainNode | null = null;
+  private isTesting = false;
+  private testGenType: string | null = null;
+
+  startTestTone(type: 'sine' | 'pink' | 'white' | 'sweep' = 'pink', freq = 1000, volume = 0.15) {
+    if (!this.context || this.context.state === 'closed') return;
+    this.stopTestTone();
+    this.tryResumeContext();
+
+    const gain = this.context.createGain();
+    gain.gain.value = volume;
+
+    if (type === 'sine') {
+      const osc = this.context.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, this.context.currentTime);
+      osc.connect(gain);
+      osc.start();
+      this.testGenSource = osc;
+    } else if (type === 'sweep') {
+      const osc = this.context.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(20, this.context.currentTime);
+      const now = this.context.currentTime;
+      osc.frequency.exponentialRampToValueAtTime(20000, now + 5);
+      osc.connect(gain);
+      osc.start();
+      this.testGenSource = osc;
+    } else if (type === 'white') {
+      const bufferSize = this.context.sampleRate * 2;
+      const noiseBuffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      const whiteNoise = this.context.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+      whiteNoise.connect(gain);
+      whiteNoise.start();
+      this.testGenSource = whiteNoise;
+    } else if (type === 'pink') {
+      const bufferSize = this.context.sampleRate * 2;
+      const noiseBuffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+        b6 = white * 0.115926;
+      }
+      const pinkNoise = this.context.createBufferSource();
+      pinkNoise.buffer = noiseBuffer;
+      pinkNoise.loop = true;
+      pinkNoise.connect(gain);
+      pinkNoise.start();
+      this.testGenSource = pinkNoise;
+    }
+
+    if (this.masterGain) {
+      gain.connect(this.masterGain);
+    } else if (this.masterCompressor) {
+      gain.connect(this.masterCompressor);
+    }
+    this.testGenGain = gain;
+    this.isTesting = true;
+    this.testGenType = type;
+  }
+
+  stopTestTone() {
+    if (this.testGenSource) {
+      try {
+        (this.testGenSource as any).stop?.();
+        this.testGenSource.disconnect();
+      } catch (e) {
+        // ignore
+      }
+      this.testGenSource = null;
+    }
+    if (this.testGenGain) {
+      try {
+        this.testGenGain.disconnect();
+      } catch (e) {
+        // ignore
+      }
+      this.testGenGain = null;
+    }
+    this.isTesting = false;
+    this.testGenType = null;
+  }
+
+  isTestToneActive(): boolean {
+    return this.isTesting;
+  }
+
+  getTestToneType(): string | null {
+    return this.testGenType;
   }
   
   calculateOptimalMasterGain(): number {

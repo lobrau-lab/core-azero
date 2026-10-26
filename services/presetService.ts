@@ -1,5 +1,6 @@
 import { ChannelSettings, MasterSettings, StripType, ConsolePreset, ChannelStripPreset, MasterBusPreset } from '../types';
 import { TOTAL_INPUTS } from '../constants';
+import { getDefaultVstConfig } from './vstPluginsData';
 
 const STORAGE_KEY_CONSOLE = 'core_azero_console_presets';
 const STORAGE_KEY_CHANNEL = 'core_azero_channel_presets';
@@ -23,6 +24,7 @@ const createChannelConfig = (overrides: Partial<ChannelSettings>[]): ChannelSett
       gate: { threshold: -60, active: false },
       compressor: { threshold: -20, ratio: 1, active: false },
       routing: [],
+      vst: getDefaultVstConfig(i + 1),
     };
 
     const override = overrides[i] || {};
@@ -32,6 +34,7 @@ const createChannelConfig = (overrides: Partial<ChannelSettings>[]): ChannelSett
       eq: { ...defaultCh.eq, ...(override.eq || {}) },
       gate: { ...defaultCh.gate, ...(override.gate || {}) },
       compressor: { ...defaultCh.compressor, ...(override.compressor || {}) },
+      vst: override.vst || defaultCh.vst,
     };
   });
 };
@@ -660,6 +663,7 @@ class PresetService {
         gate: { ...channel.gate },
         compressor: { ...channel.compressor },
         routing: [...(channel.routing || [])],
+        vst: channel.vst ? JSON.parse(JSON.stringify(channel.vst)) : undefined,
       },
     };
 

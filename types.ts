@@ -4,6 +4,17 @@ export enum StripType {
   VIRTUAL = 'VIRTUAL'
 }
 
+export interface VstPluginConfig {
+  enabled: boolean;
+  pluginId: 'warm_drive' | 'fet_76' | 'aetherspace_reverb' | 'precision_eq' | 'ott_multiband';
+  pluginName: string;
+  presetName: string;
+  dryWet: number; // 0 to 100
+  inputGain: number; // -12 to +12 dB
+  outputGain: number; // -12 to +12 dB
+  parameters: Record<string, number | string | boolean>;
+}
+
 export interface ChannelSettings {
   id: number;
   name: string;
@@ -29,6 +40,7 @@ export interface ChannelSettings {
     active: boolean;
   };
   routing: boolean[]; // 8 output busses
+  vst?: VstPluginConfig;
 }
 
 export interface MasterSettings {
@@ -76,6 +88,7 @@ export interface ChannelStripPreset {
       active: boolean;
     };
     routing?: boolean[];
+    vst?: VstPluginConfig;
   };
 }
 
@@ -165,4 +178,38 @@ export interface HealthReport {
   lastError?: AudioErrorCode;
   timestamp: number;
   message: string;
+}
+
+// Fader Automation Lane Types
+export type AutomationTargetId = 'master' | `channel_${number}`;
+
+export interface AutomationPoint {
+  id: string;
+  timestamp: number; // elapsed milliseconds from start of recording
+  targetId: AutomationTargetId;
+  channelId?: number; // 1-8 if channel, undefined if master
+  value: number; // raw fader value: master (0..1.5), channel (0..1.2)
+  normalized: number; // 0..1 normalized for display
+}
+
+export type AutomationStatus = 'idle' | 'recording' | 'playing' | 'paused';
+
+export interface AutomationLaneInfo {
+  targetId: AutomationTargetId;
+  label: string;
+  channelId?: number;
+  color: string;
+  pointsCount: number;
+  currentValue: number;
+}
+
+export interface AutomationBuffer {
+  id: string;
+  recordedAt: number;
+  duration: number; // total duration in milliseconds
+  points: AutomationPoint[];
+  initialValues: {
+    masterGain: number;
+    channelGains: Record<number, number>;
+  };
 }

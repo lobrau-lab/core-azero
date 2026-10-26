@@ -1,9 +1,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ICONS } from '../constants';
-import { ChannelSettings, AudioMeterData, ChannelStripPreset, MidiMapping, MidiTarget } from '../types';
-import { ChevronDown, Power, AlertCircle, Bookmark, Sliders, Radio } from 'lucide-react';
+import { ChannelSettings, AudioMeterData, ChannelStripPreset, MidiMapping, MidiTarget, VstPluginConfig } from '../types';
+import { ChevronDown, Power, AlertCircle, Bookmark, Sliders, Radio, Sparkles } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
+import { getDefaultVstConfig } from '../services/vstPluginsData';
 
 interface Props {
   settings: ChannelSettings;
@@ -17,6 +18,8 @@ interface Props {
   activeLearningTarget?: MidiTarget | null;
   onStartLearn?: (target: MidiTarget) => void;
   midiMappings?: MidiMapping[];
+  onOpenVstModal?: (channelId: number) => void;
+  onToggleVst?: (channelId: number) => void;
 }
 
 const Knob = ({ value, onChange, label, min, max, color = "blue", size = "w-10 h-10" }: any) => {
@@ -79,13 +82,27 @@ const MixerStrip: React.FC<Props> = ({
   isLearnMode = false,
   activeLearningTarget = null,
   onStartLearn,
-  midiMappings = []
+  midiMappings = [],
+  onOpenVstModal,
+  onToggleVst
 }) => {
   const [meter, setMeter] = useState<AudioMeterData>({ rms: 0, peak: 0 });
   const [hasError, setHasError] = useState(false);
   const [isPresetMenuOpen, setIsPresetMenuOpen] = useState(false);
   const meterRef = useRef<HTMLDivElement>(null);
   const presetMenuRef = useRef<HTMLDivElement>(null);
+
+  // VST Configuration
+  const currentVst: VstPluginConfig = settings.vst || getDefaultVstConfig(settings.id);
+  const isVstActive = Boolean(currentVst.enabled);
+  const vstShortNames: Record<string, string> = {
+    warm_drive: 'WARMDRV',
+    fet_76: 'FET-76',
+    aetherspace_reverb: 'SPACE-RV',
+    precision_eq: 'PHASE-EQ',
+    ott_multiband: 'OTT-PUMP'
+  };
+  const vstShortLabel = vstShortNames[currentVst.pluginId] || 'EXT VST';
 
   // Targets and mappings for MIDI Learn
   const gainTarget: MidiTarget = { id: `ch_${settings.id}_gain`, type: 'channel_gain', channelId: settings.id, label: `CH ${settings.id} Fader Gain` };
@@ -236,6 +253,75 @@ const MixerStrip: React.FC<Props> = ({
                     </div>
                 ))}
             </div>
+        </div>
+      </div>
+
+      {/* External VST Insert Slot */}
+      <div className="w-[90%] bg-[#0a0a0a] rounded border border-[#222] p-1 mb-2 flex flex-col gap-1 skeuo-shadow">
+        <div className="flex justify-between items-center border-b border-[#222] pb-0.5 px-0.5">
+          <span className="text-[7px] text-gray-500 font-black tracking-widest">EXT VST</span>
+          <span
+            className={`text-[6px] font-mono font-bold px-1 rounded transition-colors ${
+              isVstActive
+                ? 'text-emerald-400 bg-emerald-950/80 border border-emerald-500/30'
+                : 'text-gray-600 bg-neutral-900 border border-neutral-800'
+            }`}
+          >
+            {isVstActive ? 'ACTIVE' : 'BYPASS'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* Toggle Power Button */}
+          <button
+            onClick={() => {
+              if (onToggleVst) {
+                onToggleVst(settings.id);
+              } else {
+                onChange({
+                  ...settings,
+                  vst: { ...currentVst, enabled: !currentVst.enabled }
+                });
+              }
+            }}
+            className={`flex items-center justify-center p-1 rounded transition-all text-[8px] font-bold ${
+              isVstActive
+                ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 led-green'
+                : 'bg-[#181818] text-gray-600 border border-[#2e2e2e] hover:text-gray-400'
+            }`}
+            title={isVstActive ? 'Bypass External VST Effect' : 'Enable External VST Effect'}
+          >
+            <Power size={9} />
+          </button>
+
+          {/* Plugin Name / Trigger Modal Button */}
+          <button
+            onClick={() => onOpenVstModal?.(settings.id)}
+            className={`flex-1 bg-[#121214] hover:bg-[#1a1a20] border rounded px-1.5 py-0.5 text-left flex items-center justify-between transition-colors group ${
+              isVstActive
+                ? 'border-emerald-800/60 shadow-[0_0_6px_rgba(16,185,129,0.15)]'
+                : 'border-[#2a2a2e] hover:border-cyan-500/40'
+            }`}
+            title="Open External VST Plugin Parameters"
+          >
+            <span
+              className={`text-[8px] font-mono font-bold truncate max-w-[50px] transition-colors ${
+                isVstActive
+                  ? 'text-emerald-300 group-hover:text-emerald-200'
+                  : 'text-gray-400 group-hover:text-cyan-300'
+              }`}
+            >
+              {vstShortLabel}
+            </span>
+            <Sliders
+              size={8}
+              className={`shrink-0 ml-0.5 transition-colors ${
+                isVstActive
+                  ? 'text-emerald-400 group-hover:text-emerald-300'
+                  : 'text-gray-500 group-hover:text-cyan-400'
+              }`}
+            />
+          </button>
         </div>
       </div>
 

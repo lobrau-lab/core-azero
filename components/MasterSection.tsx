@@ -1,9 +1,12 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { ICONS } from '../constants';
-import { MasterSettings, MasterBusPreset, MidiMapping, MidiTarget } from '../types';
+import { MasterSettings, MasterBusPreset, MidiMapping, MidiTarget, ChannelSettings } from '../types';
 import { ChevronDown, Speaker, MicOff, Waves, Bookmark, Sliders, Radio } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
+import { automationService } from '../services/automationService';
+import SpectrumAnalyzer from './SpectrumAnalyzer';
+import AutomationLane from './AutomationLane';
 
 interface Props {
   settings: MasterSettings;
@@ -20,6 +23,8 @@ interface Props {
   onStartLearn?: (target: MidiTarget) => void;
   midiMappings?: MidiMapping[];
   onOpenMidiModal?: () => void;
+  channels?: ChannelSettings[];
+  onOpenAutomationOverview?: () => void;
 }
 
 const MasterKnob = ({ value, onChange, label }: { value: number, onChange: (v: number) => void, label: string }) => {
@@ -81,7 +86,9 @@ const MasterSection: React.FC<Props> = ({
   activeLearningTarget = null,
   onStartLearn,
   midiMappings = [],
-  onOpenMidiModal
+  onOpenMidiModal,
+  channels = [],
+  onOpenAutomationOverview
 }) => {
   const meterRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -356,6 +363,16 @@ const MasterSection: React.FC<Props> = ({
             </div>
         </div>
 
+        {/* Real-time Frequency Spectrum Analyzer (Web Audio AnalyserNode) */}
+        <SpectrumAnalyzer />
+
+        {/* Fader Automation Lane (Record / Playback / Buffer) */}
+        <AutomationLane
+          currentMasterGain={settings.masterGain}
+          channels={channels.map((c) => ({ id: c.id, gain: c.gain }))}
+          onOpenOverview={onOpenAutomationOverview}
+        />
+
         {/* Master Meter & Fader - Fixed Layout */}
         <div className="flex-grow flex justify-center gap-4 min-h-[250px] relative items-end pb-4">
           
@@ -384,7 +401,9 @@ const MasterSection: React.FC<Props> = ({
                 value={settings.masterGain}
                 onChange={(e) => {
                   if (!isLearnMode) {
-                    onChange({ ...settings, masterGain: parseFloat(e.target.value) });
+                    const newGain = parseFloat(e.target.value);
+                    onChange({ ...settings, masterGain: newGain });
+                    automationService.recordFaderMove('master', newGain);
                   }
                 }}
                 onClick={(e) => {
