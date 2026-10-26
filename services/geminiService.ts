@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 export const getGeminiOptimization = async (channelName: string, type: string) => {
-  let apiKey = localStorage.getItem('GEMINI_API_KEY');
+  let apiKey = localStorage.getItem('GEMINI_API_KEY') || (typeof process !== 'undefined' ? (process.env?.GEMINI_API_KEY || process.env?.API_KEY) : undefined);
 
   if (!apiKey) {
     apiKey = window.prompt("Please enter your Gemini API Key for AI Optimization:", "");
