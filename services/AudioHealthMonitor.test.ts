@@ -30,8 +30,11 @@ describe('AudioHealthMonitor', () => {
     Object.defineProperty(global.navigator, 'mediaDevices', {
       value: {
         enumerateDevices: vi.fn().mockResolvedValue([]),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       },
       configurable: true,
+      writable: true,
     });
   });
 
@@ -60,6 +63,7 @@ describe('AudioHealthMonitor', () => {
   it('should report HEALTHY on normal operation', async () => {
     const channels = [createChannel(1, StripType.VIRTUAL)];
     audioHealthMonitor.start(channels);
+    await vi.advanceTimersByTimeAsync(0);
 
     // Advance time and mock context time advancing
     vi.mocked(audioEngine.getContextTime).mockReturnValue(1);
@@ -78,6 +82,7 @@ describe('AudioHealthMonitor', () => {
     const channels = [createChannel(1, StripType.VIRTUAL)];
 
     audioHealthMonitor.start(channels);
+    await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(audioHealthMonitor.onHealthUpdate).toHaveBeenCalledWith(
@@ -96,6 +101,7 @@ describe('AudioHealthMonitor', () => {
 
     const channels = [createChannel(1, StripType.VIRTUAL)];
     audioHealthMonitor.start(channels);
+    await vi.advanceTimersByTimeAsync(0);
 
     // Check 1 - same time
     await vi.advanceTimersByTimeAsync(1000);
@@ -128,6 +134,7 @@ describe('AudioHealthMonitor', () => {
     ]);
 
     audioHealthMonitor.start(channels);
+    await vi.advanceTimersByTimeAsync(0);
     vi.mocked(audioEngine.getContextTime).mockReturnValue(1);
     await vi.advanceTimersByTimeAsync(1000);
 
@@ -136,6 +143,10 @@ describe('AudioHealthMonitor', () => {
 
     // Now disconnect it
     vi.mocked(global.navigator.mediaDevices.enumerateDevices).mockResolvedValue([]);
+    const listenerCall = vi.mocked(global.navigator.mediaDevices.addEventListener).mock.calls.find(c => c[0] === 'devicechange');
+    if (listenerCall) {
+        await (listenerCall[1] as EventListener)(new Event('devicechange'));
+    }
     vi.mocked(audioEngine.getContextTime).mockReturnValue(2);
     await vi.advanceTimersByTimeAsync(1000);
 
@@ -154,6 +165,7 @@ describe('AudioHealthMonitor', () => {
     vi.mocked(audioEngine.getMeter).mockReturnValue({ rms: NaN, peak: NaN });
 
     audioHealthMonitor.start(channels);
+    await vi.advanceTimersByTimeAsync(0);
     vi.mocked(audioEngine.getContextTime).mockReturnValue(1);
     await vi.advanceTimersByTimeAsync(1000);
 
@@ -170,6 +182,7 @@ describe('AudioHealthMonitor', () => {
   it('should stop periodic checks when stop() is called', async () => {
     const channels = [createChannel(1, StripType.VIRTUAL)];
     audioHealthMonitor.start(channels);
+    await vi.advanceTimersByTimeAsync(0);
 
     vi.mocked(audioEngine.getContextTime).mockReturnValue(1);
     await vi.advanceTimersByTimeAsync(1000);
@@ -190,6 +203,7 @@ describe('AudioHealthMonitor', () => {
 
     const channels = [createChannel(1, StripType.VIRTUAL)];
     audioHealthMonitor.start(channels);
+    await vi.advanceTimersByTimeAsync(0);
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(audioEngine.tryResumeContext).toHaveBeenCalled();
