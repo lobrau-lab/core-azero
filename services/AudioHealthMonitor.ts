@@ -88,7 +88,7 @@ class AudioHealthMonitor {
 
     // 2. Check Device Integrity (Protocol A)
     for (const ch of this.currentChannels) {
-        // FIX: Ignore 'display-capture' as it is a virtual browser ID, not a physical device
+        // Ignore 'display-capture' as it is a virtual browser ID, not a physical device
         if (ch.type === 'PHYSICAL' && ch.deviceId && ch.deviceId !== 'display-capture' && !this.cachedInputDeviceIds.has(ch.deviceId)) {
             await this.executeProtocolA(ch.id, `Physical device ${ch.deviceId} disconnected.`);
         }
