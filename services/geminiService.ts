@@ -25,12 +25,11 @@ export const getGeminiOptimization = async (channelName: string, type: string) =
     });
     return response.text;
   } catch (err: any) {
-    console.error("Gemini failed", err);
     // If it's an auth error, clear the stored key so they can try again next time
     if (err?.message?.toLowerCase().includes('api key') || err?.status === 401 || err?.status === 403) {
       localStorage.removeItem('GEMINI_API_KEY');
-      return "API Key is invalid or expired. It has been removed. Please try again.";
+      throw new Error("API Key is invalid or expired. It has been removed. Please try again.");
     }
-    return "Could not fetch AI suggestions at this time.";
+    throw new Error("Could not fetch AI suggestions at this time.");
   }
 };
