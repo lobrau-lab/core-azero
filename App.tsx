@@ -302,8 +302,12 @@ const App: React.FC = () => {
   const handleOptimization = async (channelId: number) => {
      const ch = channels.find(c => c.id === channelId);
      if(!ch) return;
-     const suggestion = await getGeminiOptimization(ch.name, ch.type);
-     setNotification({ title: `AI Optimization: ${ch.name}`, message: suggestion || "No suggestion available." });
+     try {
+       const suggestion = await getGeminiOptimization(ch.name, ch.type);
+       setNotification({ title: `AI Optimization: ${ch.name}`, message: suggestion || "No suggestion available." });
+     } catch (error: any) {
+       setNotification({ title: `AI Optimization: ${ch.name}`, message: error.message || "Could not fetch AI suggestions at this time." });
+     }
   };
 
   const handleMasterOptimization = () => {
