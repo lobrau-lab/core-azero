@@ -26,6 +26,11 @@ export const AVAILABLE_MIDI_TARGETS: MidiTarget[] = [
   { id: 'master_smart_mastering', type: 'master_smart_mastering', label: 'Smart Mastering Toggle' },
   { id: 'master_aec', type: 'master_aec', label: 'Echo Cancellation Toggle' },
 ];
+// Fast lookup map for targets
+export const AVAILABLE_MIDI_TARGETS_MAP = new Map<string, MidiTarget>(
+  AVAILABLE_MIDI_TARGETS.map(t => [t.id, t])
+);
+
 
 export const HARDWARE_PROFILES = [
   {
@@ -193,6 +198,7 @@ class MidiService {
   private midiAccess: any = null;
   private isInitialized = false;
   private mappings: MidiMapping[] = [];
+  private mappingsMap: Map<number, MidiMapping> = new Map();
   private learningTarget: MidiTarget | null = null;
   private connectedDevices: MidiInputPortInfo[] = [];
   private recentLogs: MidiLogEntry[] = [];
@@ -208,6 +214,22 @@ class MidiService {
 
   constructor() {
     this.loadMappingsFromStorage();
+  }
+
+  private getMidiKey(messageType: MidiMessageType, controlNumber: number, midiChannel: number): number {
+    let typeInt = 0;
+    if (messageType === 'cc') typeInt = 1;
+    else if (messageType === 'note') typeInt = 2;
+    else if (messageType === 'pitchbend') typeInt = 3;
+    return (typeInt << 19) | (midiChannel << 14) | controlNumber;
+  }
+
+  private rebuildMap() {
+    this.mappingsMap.clear();
+    for (let i = this.mappings.length - 1; i >= 0; i--) {
+      const m = this.mappings[i];
+      this.mappingsMap.set(this.getMidiKey(m.messageType, m.controlNumber, m.midiChannel), m);
+    }
   }
 
   public isWebMidiSupported(): boolean {
@@ -342,6 +364,7 @@ class MidiService {
       // Replace any existing mapping for this target
       this.mappings = this.mappings.filter((m) => m.targetId !== learnedTarget.id);
       this.mappings.unshift(newMapping);
+      this.rebuildMap();
       this.saveMappingsToStorage();
 
       this.learningTarget = null; // Exit learning for this target
@@ -368,21 +391,25 @@ class MidiService {
     }
 
     // --- NORMAL MODE: Match against registered mappings ---
-    const matched = this.mappings.find((m) => {
-      if (m.messageType !== messageType) return false;
-      if (m.controlNumber !== controlNumber) return false;
-      if (m.midiChannel !== 0 && m.midiChannel !== midiChannel) return false;
-      return true;
-    });
+    if (!messageType) return;
 
-    const targetDef = matched
-      ? AVAILABLE_MIDI_TARGETS.find((t) => t.id === matched.targetId) || {
+    let matched = this.mappingsMap.get(this.getMidiKey(messageType, controlNumber, midiChannel));
+    if (!matched && midiChannel !== 0) {
+      matched = this.mappingsMap.get(this.getMidiKey(messageType, controlNumber, 0));
+    }
+
+    let targetDef;
+    if (matched) {
+      targetDef = AVAILABLE_MIDI_TARGETS_MAP.get(matched.targetId);
+      if (!targetDef) {
+        targetDef = {
           id: matched.targetId,
           type: matched.targetType,
           channelId: matched.channelId,
           label: matched.targetId,
-        }
-      : undefined;
+        };
+      }
+    }
 
     // Log the message
     const log: MidiLogEntry = {
@@ -469,6 +496,7 @@ class MidiService {
   public saveMapping(mapping: MidiMapping) {
     this.mappings = this.mappings.filter((m) => m.targetId !== mapping.targetId);
     this.mappings.unshift(mapping);
+    this.rebuildMap();
     this.saveMappingsToStorage();
     if (this.onMappingsUpdated) {
       this.onMappingsUpdated(this.mappings);
@@ -477,6 +505,7 @@ class MidiService {
 
   public deleteMapping(mappingId: string) {
     this.mappings = this.mappings.filter((m) => m.id !== mappingId);
+    this.rebuildMap();
     this.saveMappingsToStorage();
     if (this.onMappingsUpdated) {
       this.onMappingsUpdated(this.mappings);
@@ -485,6 +514,7 @@ class MidiService {
 
   public deleteMappingByTarget(targetId: string) {
     this.mappings = this.mappings.filter((m) => m.targetId !== targetId);
+    this.rebuildMap();
     this.saveMappingsToStorage();
     if (this.onMappingsUpdated) {
       this.onMappingsUpdated(this.mappings);
@@ -493,6 +523,7 @@ class MidiService {
 
   public clearAllMappings() {
     this.mappings = [];
+    this.rebuildMap();
     this.saveMappingsToStorage();
     if (this.onMappingsUpdated) {
       this.onMappingsUpdated(this.mappings);
@@ -504,6 +535,7 @@ class MidiService {
     if (!profile) return false;
     const newMappings = profile.createMappings();
     this.mappings = newMappings;
+    this.rebuildMap();
     this.saveMappingsToStorage();
     if (this.onMappingsUpdated) {
       this.onMappingsUpdated(this.mappings);
@@ -546,9 +578,11 @@ class MidiService {
           this.mappings = defaultProfile.createMappings();
         }
       }
+      this.rebuildMap();
     } catch (e) {
       console.error('[MidiService] Failed to load mappings from storage:', e);
       this.mappings = [];
+      this.rebuildMap();
     }
   }
 
