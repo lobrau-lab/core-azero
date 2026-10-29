@@ -40,11 +40,19 @@ class OmniGateProcessor extends AudioWorkletProcessor {
     const gainAttack = 0.01;
     const gainRelease = 0.005;
 
-    for (let i = 0; i < input[0].length; ++i) {
+    const inputLen = input[0].length;
+    const numChannels = input.length;
+
+    for (let i = 0; i < inputLen; ++i) {
         let lvl = 0;
-        for (let c = 0; c < input.length; ++c) {
-            if (input[c]) {
-                lvl = Math.max(lvl, Math.abs(input[c][i]));
+        for (let c = 0; c < numChannels; ++c) {
+            const channel = input[c];
+            if (channel !== undefined) {
+                const val = channel[i];
+                const absVal = val < 0 ? -val : val;
+                if (absVal > lvl) {
+                    lvl = absVal;
+                }
             }
         }
         
