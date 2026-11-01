@@ -131,6 +131,12 @@ class ProMixerUI(ctk.CTk):
         self.frame_master.grid_columnconfigure(0, weight=1)
         self.frame_master.grid_columnconfigure(1, weight=1)
         
+        self._setup_routing_section()
+        self._setup_dynamics_section()
+        self._setup_master_section()
+        self._setup_power_section()
+
+    def _setup_routing_section(self):
         # --- Row 0: Routing & Refresh ---
         ctk.CTkLabel(self.frame_master, text="AUDIO I/O ROUTING", font=("Arial", 11, "bold"), text_color="gray").grid(row=0, column=0, columnspan=2, pady=(20, 5))
         
@@ -143,6 +149,7 @@ class ProMixerUI(ctk.CTk):
         self.btn_refresh = ctk.CTkButton(self.frame_master, text="🔄", width=40, command=self.refresh_devices, fg_color="#444")
         self.btn_refresh.grid(row=2, column=1, sticky="e", padx=(0, 30))
 
+    def _setup_dynamics_section(self):
         # --- Row 1-2: FX Knobs (Visuals) ---
         ctk.CTkLabel(self.frame_master, text="DYNAMICS PROCESSOR", font=("Arial", 10, "bold"), text_color="#3498db").grid(row=3, column=0, columnspan=2, pady=(20, 10))
         
@@ -157,6 +164,7 @@ class ProMixerUI(ctk.CTk):
         self.fx2.grid(row=4, column=1, pady=5)
         ctk.CTkLabel(self.frame_master, text="RATIO").grid(row=5, column=1)
 
+    def _setup_master_section(self):
         # --- Row 3: Master Fader & Meter ---
         ctk.CTkLabel(self.frame_master, text="MASTER GAIN", font=("Arial", 12, "bold")).grid(row=6, column=0, columnspan=2, pady=(20, 5))
 
@@ -187,6 +195,7 @@ class ProMixerUI(ctk.CTk):
         self.lbl_db = ctk.CTkLabel(self.frame_master, text="-INF dB", font=("Courier", 16, "bold"))
         self.lbl_db.grid(row=8, column=0, columnspan=2, pady=5)
 
+    def _setup_power_section(self):
         # --- Row 4: Power / Optimizer ---
         self.btn_power = ctk.CTkButton(
             self.frame_master, 
